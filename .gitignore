@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Secrets / credentials — never commit these
+.env
+.env.*
+*.pem
+*.key
+*_rsa
+*_rsa.pub
+secrets.py
+secrets.json
+credentials.json
+*.token
+*.api_key
+config_local.py
+
+# OS / editor cruft
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Captured lab traffic (may contain sensitive data from lab hosts)
+*.pcap
+*.pcapng
