@@ -232,6 +232,17 @@ stopped — it triggers `sigint_handler`, which:
   `iptables` rules are scoped by IP. Fully independent per-IP shaping
   would require HTB classes with `u32`/`iptables --set-mark` filters,
   which is intentionally out of scope for this lab tool.
+- **A very low `--bandwidth` also throttles the attack's own ARP
+  traffic.** Because the `tc tbf` cap applies to the whole interface,
+  not just the victim's forwarded packets, an aggressive value like
+  `1kbit` can throttle Internuncio's own outgoing poison/restore ARP
+  packets enough to raise `OSError: [Errno 105] No buffer space
+  available` (ENOBUFS). Poison-loop send failures are caught and
+  retried on the next interval instead of crashing the session, and
+  `tc`/`iptables` are always torn down *before* the ARP restore packets
+  are sent on exit, so the restore itself is never subject to the
+  shaping — but expect degraded/retried poisoning while an extremely
+  low rate is active.
 - **Vendor lookup is OUI-only.** It identifies the manufacturer from
   the MAC's first 3 octets, not the specific device model; consumer
   devices with a randomized MAC report as `Randomized MAC (likely

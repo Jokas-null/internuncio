@@ -72,12 +72,15 @@ def restore_network():
     in one cleanup step (e.g. permissions) must not raise again and
     skip the remaining ones — that would trade one raw traceback for
     two, and still leave later steps undone.
-    """
-    try:
-        manager.restore_all()
-    except Exception as e:
-        log_err(f"Error restoring ARP sessions: {e}")
 
+    tc/iptables are torn down FIRST, before the ARP restore packets are
+    sent: `tc tbf` shapes the WHOLE interface, not just the victim's
+    forwarded traffic, so with a low --bandwidth (e.g. 1kbit) it also
+    throttles our own restore-ARP packets going out the same NIC. If
+    the qdisc is still in place when restore_all() runs, those packets
+    can fail with ENOBUFS exactly when they matter most. Lifting the
+    shaping first means the restore always goes out at full speed.
+    """
     if current_interface:
         try:
             clear_tc(current_interface)
@@ -92,6 +95,11 @@ def restore_network():
             log_err(f"Error removing iptables rule for {ip}: {e}")
     if total_block_targets:
         log_ok("iptables (DROP) rules removed.")
+
+    try:
+        manager.restore_all()
+    except Exception as e:
+        log_err(f"Error restoring ARP sessions: {e}")
 
     try:
         set_ip_forward(False)
