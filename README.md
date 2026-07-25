@@ -29,6 +29,7 @@ bandwidth, generating traffic patterns an IDS should be able to detect.
   - [Single-target attack (`--target`)](#single-target-attack---target)
   - [Multi-target attack (`--targets`)](#multi-target-attack---targets)
   - [Bandwidth limiting vs. total cut](#bandwidth-limiting-vs-total-cut)
+  - [MAC vendor lookup and `--update-oui`](#mac-vendor-lookup-and---update-oui)
   - [Stopping the attack (kill-switch)](#stopping-the-attack-kill-switch)
 - [Known limitations](#known-limitations)
 - [Legal / Ethical Notice](#legal--ethical-notice)
@@ -139,10 +140,12 @@ sudo python3 internuncio.py --scan --interface eth0
 ```
 
 Sends ARP requests across `WHITELIST_SUBNET` and prints every host that
-answers, along with its MAC and (best-effort) reverse-DNS hostname.
-Afterwards you're prompted to optionally select one, several (`0,2`), or
-`all` of the discovered hosts to hand off to attack mode — you'll then
-be asked for the gateway IP and desired bandwidth interactively.
+answers, along with its MAC and its manufacturer (resolved offline from
+the MAC's OUI prefix — see [MAC vendor lookup](#mac-vendor-lookup-and---update-oui)
+below). Afterwards you're prompted to optionally select one, several
+(`0,2`), or `all` of the discovered hosts to hand off to attack mode —
+you'll then be asked for the gateway IP and desired bandwidth
+interactively.
 
 ### Single-target attack (`--target`)
 
@@ -172,6 +175,30 @@ before proceeding.
 - `--bandwidth 0` — switches to a total block: per-victim `iptables
   DROP` rules instead of shaping.
 
+### MAC vendor lookup and `--update-oui`
+
+Every host found by `--scan` is annotated with its manufacturer,
+resolved from the OUI (first 3 octets) of its MAC against a local
+database (`data/oui_db.json`, built from the IEEE's official OUI
+registry). This lookup is always offline — it never touches the
+network — so `--scan` keeps working with no internet access.
+
+A MAC with its "locally administered" bit set is reported as
+`Randomized MAC (likely mobile device)` instead of a vendor name: that
+bit indicates the address was generated on the device itself rather
+than assigned by the IEEE, which is the default MAC-randomization
+behavior of modern iOS and Android when joining a WiFi network.
+
+To (re)generate `data/oui_db.json` from the latest IEEE data:
+
+```bash
+python3 internuncio.py --update-oui
+```
+
+This is the only command in the whole project that needs internet
+access; it does not require `--interface` and does not touch the lab
+network in any way.
+
 ### Stopping the attack (kill-switch)
 
 Press `Ctrl+C` at any time. This is the *only* way the attack should be
@@ -193,9 +220,10 @@ stopped — it triggers `sigint_handler`, which:
   `iptables` rules are scoped by IP. Fully independent per-IP shaping
   would require HTB classes with `u32`/`iptables --set-mark` filters,
   which is intentionally out of scope for this lab tool.
-- **Reverse-DNS hostnames are best-effort.** Most isolated lab networks
-  have no DNS server, so `Hostname: unknown` is the expected/common
-  result — IP and MAC resolution are unaffected.
+- **Vendor lookup is OUI-only.** It identifies the manufacturer from
+  the MAC's first 3 octets, not the specific device model; consumer
+  devices with a randomized MAC report as `Randomized MAC (likely
+  mobile device)` rather than a real vendor, by design.
 - **Layer-2 only.** ARP spoofing only works within the same broadcast
   domain/subnet; it cannot reach hosts behind a router relative to the
   attacker.

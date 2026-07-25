@@ -39,12 +39,11 @@ def log_info(msg: str):
     print(f"{Color.CYAN}[*] {msg}{Color.END}")
 
 
-def log_host_found(ip: str, mac: str, hostname: str, vendor: str):
+def log_host_found(ip: str, mac: str, vendor: str):
     """
     Imprime una línea de host descubierto con las columnas alineadas
-    (IP, MAC, hostname, vendor). Se centraliza aquí en vez de formatear
-    el string directamente en scanner.py, para que cualquier otro
-    módulo que en el futuro quiera listar hosts use siempre el mismo
-    formato de salida.
+    (IP, MAC, vendor). Se centraliza aquí en vez de formatear el string
+    directamente en scanner.py, para que cualquier otro módulo que en
+    el futuro quiera listar hosts use siempre el mismo formato de salida.
     """
-    log_ok(f"Active host: {ip:<15} MAC: {mac}  Hostname: {hostname:<12}  Vendor: {vendor}")
+    log_ok(f"Active host: {ip:<15} MAC: {mac}  Vendor: {vendor}")

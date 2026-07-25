@@ -236,10 +236,7 @@ def scan_mode(interface: str):
 
     print(f"\n{Color.BOLD}Scan summary:{Color.END}")
     for i, h in enumerate(hosts):
-        print(
-            f"  [{i}] {h['ip']:<15} MAC: {h['mac']}  "
-            f"Hostname: {h['hostname']:<12}  Vendor: {h['vendor']}"
-        )
+        print(f"  [{i}] {h['ip']:<15} MAC: {h['mac']}  Vendor: {h['vendor']}")
 
     response = input(f"\n{Color.YELLOW}Do you want to limit any of these? (y/N): {Color.END}").strip().lower()
     if response != "y":
