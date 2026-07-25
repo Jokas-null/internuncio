@@ -83,7 +83,7 @@ several layers, not just a typo:
 |---|---|---|
 | **Subnet whitelist** | `config.WHITELIST_SUBNET` | Every IP — whether it comes from `--target`, `--targets`, or `--all` — is checked against this CIDR before anything else happens. Anything outside it is discarded with an "UNAUTHORIZED NETWORK" error. |
 | **Manual confirmation** | `internuncio.py` | Attacking a single host requires an explicit `y` at a prompt. |
-| **Reinforced confirmation** | `internuncio.py` / `config.MULTI_TARGET_CONFIRMATION_PHRASE` | Attacking more than one host at once requires typing an exact phrase (`YES-I-AM-SURE` by default), not just `y` — the blast radius of a mistake scales with the victim count. |
+| **Reinforced confirmation** | `internuncio.py` / `config.MULTI_TARGET_CONFIRMATION_PHRASE` | Attacking more than one host at once requires typing an exact phrase (`YES` by default), not just `y` — the blast radius of a mistake scales with the victim count. |
 | **Thread cap** | `config.MAX_THREADS` | No more than 10 simultaneous poisoning sessions are allowed; extra targets are rejected with a warning. |
 | **Scoped discovery** | `modules/scanner.py` | The scanner only ever probes `config.WHITELIST_SUBNET`, never an arbitrary range passed on the CLI. |
 | **Read-only discovery** | `internuncio.py: scan_mode` | `--scan` only lists hosts and exits — it never asks about attacking any of them. Attacking requires a separate, explicit `--target`/`--targets` run. |
@@ -112,7 +112,7 @@ Before running anything, edit `config.py` to match your lab:
 
 ```python
 WHITELIST_SUBNET = "192.168.100.0/24"        # your isolated lab subnet
-MULTI_TARGET_CONFIRMATION_PHRASE = "YES-I-AM-SURE"
+MULTI_TARGET_CONFIRMATION_PHRASE = "YES"
 
 ARP_RESOLVE_TIMEOUT = 4     # seconds to wait for an ARP reply
 POISON_INTERVAL = 2         # seconds between poisoning rounds

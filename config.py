@@ -20,7 +20,7 @@ WHITELIST_SUBNET = "192.168.100.0/24"
 # Must be typed exactly (uppercase and hyphens included) before attacking
 # more than one host at once, precisely because the blast radius of a
 # mistake multiplies with the number of simultaneous victims.
-MULTI_TARGET_CONFIRMATION_PHRASE = "YES-I-AM-SURE"
+MULTI_TARGET_CONFIRMATION_PHRASE = "YES"
 
 # --- Network timeouts and cadence ---
 ARP_RESOLVE_TIMEOUT = 4   # seconds to wait for a response when resolving a MAC via ARP
