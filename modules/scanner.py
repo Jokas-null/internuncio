@@ -40,9 +40,9 @@ def scan_network(interface: str) -> list:
     for _, received in responses:
         ip = received.psrc
         mac = received.hwsrc
-        # get_vendor() resuelve contra la base OUI local (data/oui_db.json,
-        # cacheada en memoria por vendor_lookup), así que añadir esta
-        # columna no introduce latencia de red por cada host encontrado.
+        # get_vendor() resolves against the local OUI database
+        # (data/oui_db.json, cached in memory by vendor_lookup), so
+        # adding this column introduces no per-host network latency.
         vendor = get_vendor(mac)
         hosts.append({"ip": ip, "mac": mac, "vendor": vendor})
         log_host_found(ip, mac, vendor)

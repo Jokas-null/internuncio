@@ -41,9 +41,9 @@ def log_info(msg: str):
 
 def log_host_found(ip: str, mac: str, vendor: str):
     """
-    Imprime una línea de host descubierto con las columnas alineadas
-    (IP, MAC, vendor). Se centraliza aquí en vez de formatear el string
-    directamente en scanner.py, para que cualquier otro módulo que en
-    el futuro quiera listar hosts use siempre el mismo formato de salida.
+    Prints one discovered-host line with aligned columns (IP, MAC,
+    vendor). Centralized here instead of formatting the string directly
+    in scanner.py, so any other module that lists hosts in the future
+    always uses the same output format.
     """
     log_ok(f"Active host: {ip:<15} MAC: {mac}  Vendor: {vendor}")

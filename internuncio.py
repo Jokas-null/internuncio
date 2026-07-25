@@ -95,10 +95,10 @@ def parse_args():
     parser.add_argument("--target", help="IP of a single victim")
     parser.add_argument("--targets", help="Comma-separated list of victim IPs (multi-target mode)")
     parser.add_argument("--gateway", help="IP of the lab router/gateway")
-    # No es required=True a nivel de argparse porque --update-oui no
-    # necesita ninguna interfaz de red (solo descarga un archivo); la
-    # validación de "esta interfaz hace falta para este modo" se hace
-    # a mano en main().
+    # Not required=True at the argparse level because --update-oui
+    # doesn't need any network interface (it only downloads a file);
+    # the "this mode needs an interface" validation is done by hand in
+    # main().
     parser.add_argument("--interface", help="Network interface to use, e.g.: eth0")
     parser.add_argument(
         "--bandwidth",
@@ -296,9 +296,10 @@ def main():
     # SystemExit, which this "except Exception" deliberately does not
     # catch, so normal CLI validation errors below are unaffected.
     try:
-        # --update-oui se resuelve antes que cualquier otra cosa y no
-        # requiere --interface: es la única operación de todo el proyecto
-        # que necesita salir a internet, y no toca la red del laboratorio.
+        # --update-oui is resolved before anything else and doesn't
+        # require --interface: it's the only operation in the whole
+        # project that needs internet access, and it never touches the
+        # lab network.
         if args.update_oui:
             update_oui_database()
             return

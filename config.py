@@ -41,9 +41,9 @@ NETEM_LOSS = "10%"
 NETEM_DELAY = "100ms"
 
 # --- OUI (vendor) database ---
-# Ruta local de la base de datos de fabricantes (generada a partir del
-# oui.txt oficial de la IEEE) y URL de origen para refrescarla con
-# --update-oui. El escaneo normal SIEMPRE usa la copia local: solo
-# --update-oui necesita conexión a internet.
+# Local path of the vendor database (generated from the IEEE's official
+# oui.txt) and the source URL used to refresh it via --update-oui. Normal
+# scanning ALWAYS uses the local copy: only --update-oui needs internet
+# access.
 OUI_DB_PATH = "data/oui_db.json"
 OUI_SOURCE_URL = "https://standards-oui.ieee.org/oui/oui.txt"

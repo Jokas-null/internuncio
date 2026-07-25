@@ -1,17 +1,16 @@
 """
 utils/vendor_lookup.py
 
-Resuelve el fabricante (vendor) de un dispositivo a partir del OUI
-(Organizationally Unique Identifier) de su dirección MAC: los primeros
-3 octetos, que la IEEE asigna de forma única a cada fabricante de
-tarjetas de red.
+Resolves a device's manufacturer (vendor) from the OUI
+(Organizationally Unique Identifier) of its MAC address: the first
+3 octets, which the IEEE assigns uniquely to each network hardware
+manufacturer.
 
-Diseño clave: el escaneo normal (--scan) NUNCA necesita internet. La
-base de datos vive como un JSON local (config.OUI_DB_PATH), generado a
-partir del oui.txt oficial de la IEEE, y se carga una sola vez en
-memoria (caché a nivel de módulo). Solo `update_oui_database()` —
-invocada explícitamente con --update-oui— sale a internet a refrescar
-ese archivo.
+Key design point: normal scanning (--scan) NEVER needs internet access.
+The database lives as a local JSON file (config.OUI_DB_PATH), generated
+from the IEEE's official oui.txt, and is loaded into memory only once
+(module-level cache). Only `update_oui_database()` — explicitly invoked
+via --update-oui — reaches out to the internet to refresh that file.
 """
 
 import json
@@ -22,49 +21,49 @@ import urllib.request
 import config
 from utils.logger import log_info, log_ok, log_err, log_warn
 
-# Caché en memoria de la base de datos OUI ya cargada. Se mantiene a
-# nivel de módulo (no por instancia) porque un mismo escaneo puede
-# resolver decenas de MACs y no tiene sentido releer el JSON del disco
-# en cada una.
+# In-memory cache of the already-loaded OUI database. Kept at module
+# level (not per instance) because a single scan may resolve dozens of
+# MACs, and there's no point re-reading the JSON file from disk for
+# each one.
 _oui_cache = None
 
 
 def _normalize_oui(mac: str) -> str:
     """
-    Extrae los 3 primeros octetos de una MAC y los normaliza a
-    mayúsculas sin separadores (ej. "70:C7:F2:10:E1:4A" -> "70C7F2").
-    Este es el formato de clave usado en data/oui_db.json.
+    Extracts the first 3 octets of a MAC and normalizes them to
+    uppercase with no separators (e.g. "70:C7:F2:10:E1:4A" -> "70C7F2").
+    This is the key format used in data/oui_db.json.
 
-    Lanza ValueError si la MAC está mal formada (menos de 6 dígitos
-    hexadecimales), para que el llamador pueda degradarlo a "Unknown"
-    en vez de propagar una excepción hasta el escaneo completo.
+    Raises ValueError if the MAC is malformed (fewer than 6 hex
+    digits), so the caller can degrade to "Unknown" instead of
+    propagating an exception all the way up through the whole scan.
     """
-    solo_hex = re.sub(r"[^0-9A-Fa-f]", "", mac)
-    if len(solo_hex) < 6:
-        raise ValueError(f"MAC mal formateada: {mac!r}")
-    return solo_hex[:6].upper()
+    hex_only = re.sub(r"[^0-9A-Fa-f]", "", mac)
+    if len(hex_only) < 6:
+        raise ValueError(f"Malformed MAC: {mac!r}")
+    return hex_only[:6].upper()
 
 
 def _is_locally_administered(mac: str) -> bool:
     """
-    Comprueba el bit "locally administered" (el segundo bit menos
-    significativo del primer octeto de la MAC). Cuando está activo, la
-    dirección NO fue asignada por la IEEE a ningún fabricante: fue
-    generada aleatoriamente por el propio dispositivo.
+    Checks the "locally administered" bit (the second-least-significant
+    bit of the MAC's first octet). When it's set, the address was NOT
+    assigned by the IEEE to any manufacturer: it was randomly generated
+    by the device itself.
 
-    Esto es exactamente lo que hacen iOS y Android modernos por
-    defecto al conectarse a redes WiFi (MAC randomization), para
-    dificultar el tracking de dispositivos por MAC. Si no filtráramos
-    este caso, buscaríamos ese prefijo en la base OUI y devolveríamos
-    un fabricante real pero completamente engañoso.
+    This is exactly what modern iOS and Android do by default when
+    joining a WiFi network (MAC randomization), to make device tracking
+    by MAC harder. If this case weren't filtered out, that prefix would
+    get looked up in the OUI database and return a real — but
+    completely misleading — vendor.
     """
-    solo_hex = re.sub(r"[^0-9A-Fa-f]", "", mac)
-    primer_octeto = int(solo_hex[0:2], 16)
-    return bool(primer_octeto & 0b00000010)
+    hex_only = re.sub(r"[^0-9A-Fa-f]", "", mac)
+    first_octet = int(hex_only[0:2], 16)
+    return bool(first_octet & 0b00000010)
 
 
 def _load_database() -> dict:
-    """Carga data/oui_db.json en memoria una única vez (lazy loading + caché)."""
+    """Loads data/oui_db.json into memory exactly once (lazy loading + cache)."""
     global _oui_cache
     if _oui_cache is not None:
         return _oui_cache
@@ -86,13 +85,13 @@ def _load_database() -> dict:
 
 def get_vendor(mac: str) -> str:
     """
-    Devuelve el nombre del fabricante asociado a una MAC, o una cadena
-    descriptiva cuando no aplica una búsqueda normal.
+    Returns the manufacturer name associated with a MAC, or a
+    descriptive string when a normal lookup doesn't apply.
 
-    Orden de comprobaciones (importa el orden): primero se comprueba si
-    la MAC es aleatoria, porque en ese caso CUALQUIER resultado de la
-    base OUI sería incorrecto — ese prefijo nunca fue asignado a un
-    fabricante real. Solo si no es aleatoria tiene sentido consultar
+    Order of checks matters: whether the MAC is randomized is checked
+    first, because in that case ANY result from the OUI database would
+    be wrong — that prefix was never assigned to a real manufacturer.
+    Only when it isn't randomized does it make sense to query
     data/oui_db.json.
     """
     try:
@@ -108,53 +107,53 @@ def get_vendor(mac: str) -> str:
 
 def update_oui_database() -> bool:
     """
-    Descarga el listado oficial de OUIs de la IEEE (oui.txt) y lo
-    convierte a data/oui_db.json.
+    Downloads the IEEE's official OUI listing (oui.txt) and converts it
+    into data/oui_db.json.
 
-    Es la ÚNICA función de todo el proyecto que necesita conexión a
-    internet: el resto de la herramienta (incluido el escaneo normal)
-    siempre trabaja contra la copia local ya generada, precisamente
-    para que --scan funcione en un laboratorio aislado sin salida real.
+    This is the ONLY function in the whole project that needs internet
+    access: everything else (including normal scanning) always works
+    against the already-generated local copy, precisely so --scan keeps
+    working in an isolated lab with no real outbound access.
     """
     log_info(f"Downloading OUI database from {config.OUI_SOURCE_URL} ...")
-    # standards-oui.ieee.org rechaza el User-Agent por defecto de urllib
-    # (responde 418); un User-Agent de navegador normal es suficiente
-    # para que sirva el archivo.
+    # standards-oui.ieee.org rejects urllib's default User-Agent
+    # (responds with 418); a normal browser-like User-Agent is enough
+    # to get the file served.
     request = urllib.request.Request(
         config.OUI_SOURCE_URL,
         headers={"User-Agent": "Mozilla/5.0 (compatible; Internuncio-OUI-Updater/1.0)"},
     )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
-            contenido = response.read().decode("utf-8", errors="ignore")
+            content = response.read().decode("utf-8", errors="ignore")
     except Exception as e:
         log_err(f"Could not download the OUI database: {e}")
         return False
 
-    # Cada entrada del oui.txt de la IEEE trae una línea como:
+    # Each entry in the IEEE's oui.txt has a line like:
     #   70-C7-F2   (hex)		Apple, Inc
-    # Nos interesa el prefijo hexadecimal (con guiones) y el nombre del
-    # fabricante que sigue a "(hex)"; el resto (dirección postal, etc.)
-    # se descarta porque no lo necesitamos para el escáner.
-    patron = re.compile(r"^([0-9A-Fa-f]{2}-[0-9A-Fa-f]{2}-[0-9A-Fa-f]{2})\s+\(hex\)\s+(.+)$", re.MULTILINE)
+    # We only care about the hyphenated hex prefix and the vendor name
+    # that follows "(hex)"; the rest (postal address, etc.) is
+    # discarded since the scanner doesn't need it.
+    pattern = re.compile(r"^([0-9A-Fa-f]{2}-[0-9A-Fa-f]{2}-[0-9A-Fa-f]{2})\s+\(hex\)\s+(.+)$", re.MULTILINE)
 
-    base_datos = {}
-    for prefijo, vendor in patron.findall(contenido):
-        oui = prefijo.replace("-", "").upper()
-        base_datos[oui] = vendor.strip()
+    database = {}
+    for prefix, vendor in pattern.findall(content):
+        oui = prefix.replace("-", "").upper()
+        database[oui] = vendor.strip()
 
-    if not base_datos:
+    if not database:
         log_err("Downloaded content did not match the expected format; database was not generated.")
         return False
 
     os.makedirs(os.path.dirname(config.OUI_DB_PATH), exist_ok=True)
     with open(config.OUI_DB_PATH, "w", encoding="utf-8") as f:
-        json.dump(base_datos, f, indent=2, ensure_ascii=False, sort_keys=True)
+        json.dump(database, f, indent=2, ensure_ascii=False, sort_keys=True)
 
-    # Invalida la caché en memoria para que la próxima búsqueda recargue
-    # el archivo recién escrito en vez de seguir usando la versión vieja.
+    # Invalidate the in-memory cache so the next lookup reloads the
+    # freshly written file instead of continuing to use the old version.
     global _oui_cache
     _oui_cache = None
 
-    log_ok(f"OUI database updated: {len(base_datos)} vendors saved to {config.OUI_DB_PATH}")
+    log_ok(f"OUI database updated: {len(database)} vendors saved to {config.OUI_DB_PATH}")
     return True

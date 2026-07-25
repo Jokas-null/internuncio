@@ -126,14 +126,15 @@ class SpoofManager:
 
     def add_target(self, target_ip: str, gateway_ip: str, interface: str) -> SpoofSession:
         """
-        Crea y arranca una sesión de spoofing para una víctima.
+        Creates and starts a spoofing session for one victim.
 
-        `session.start()` resuelve MACs por ARP contra un host real de
-        la red — puede fallar si ese host se desconectó entre el
-        --scan y el ataque (típico en móviles con MAC aleatoria, que
-        además pueden apagar el WiFi). Se captura la excepción aquí
-        para que UN host inalcanzable no aborte todo el ataque
-        multi-objetivo: se avisa y se sigue con el resto de víctimas.
+        `session.start()` resolves MACs via ARP against a real host on
+        the network — it can fail if that host went offline between
+        --scan and the attack (typical of mobile devices with a
+        randomized MAC, which may also just turn WiFi off). The
+        exception is caught here so that ONE unreachable host doesn't
+        abort the whole multi-target attack: it's logged and the rest
+        of the victims keep going.
         """
         with self._lock:
             if len(self.sessions) >= config.MAX_THREADS:
