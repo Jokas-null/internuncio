@@ -24,6 +24,7 @@ Available modes:
 """
 
 import argparse
+import os
 import signal
 import sys
 import time
@@ -64,19 +65,37 @@ def restore_network():
     (e.g. a victim going offline mid-run). Without this, a crash would
     leave ip_forward enabled and any already-poisoned victims without
     a restore, silently and indefinitely.
+
+    Each step is isolated in its own try/except: this function is
+    itself called from main()'s generic exception handler, so a failure
+    in one cleanup step (e.g. permissions) must not raise again and
+    skip the remaining ones — that would trade one raw traceback for
+    two, and still leave later steps undone.
     """
-    manager.restore_all()
+    try:
+        manager.restore_all()
+    except Exception as e:
+        log_err(f"Error restoring ARP sessions: {e}")
 
     if current_interface:
-        clear_tc(current_interface)
-        log_ok("tc rules removed.")
+        try:
+            clear_tc(current_interface)
+            log_ok("tc rules removed.")
+        except Exception as e:
+            log_err(f"Error removing tc rules: {e}")
 
     for ip in total_block_targets:
-        clear_iptables(ip)
+        try:
+            clear_iptables(ip)
+        except Exception as e:
+            log_err(f"Error removing iptables rule for {ip}: {e}")
     if total_block_targets:
         log_ok("iptables (DROP) rules removed.")
 
-    set_ip_forward(False)
+    try:
+        set_ip_forward(False)
+    except Exception as e:
+        log_err(f"Error disabling ip_forward: {e}")
 
 
 def sigint_handler(sig, frame):
@@ -303,6 +322,17 @@ def main():
         if args.update_oui:
             update_oui_database()
             return
+
+        # Every other mode needs raw sockets (ARP), and the attack modes
+        # additionally need tc/iptables/ip_forward — all of which require
+        # root. Checked here, once, so a non-root run fails with one
+        # clear message instead of a raw PermissionError traceback deep
+        # inside scapy (and a second one when cleanup itself then tries
+        # to touch ip_forward without permission).
+        if os.geteuid() != 0:
+            log_err("Internuncio needs root privileges (raw sockets, tc, iptables, ip_forward).")
+            log_err(f"Run it with sudo, e.g.: sudo python3 {sys.argv[0]} --scan --interface eth0")
+            sys.exit(1)
 
         if not args.interface:
             log_err("Missing --interface.")
