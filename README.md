@@ -20,7 +20,6 @@ bandwidth, generating traffic patterns an IDS should be able to detect.
 ## Table of contents
 
 - [How it works](#how-it-works)
-- [Project structure](#project-structure)
 - [Safety mechanisms](#safety-mechanisms)
 - [Requirements](#requirements)
 - [Installation](#installation)
@@ -72,27 +71,6 @@ Everything above is reversible in real time: interrupting the script
 tears down the `tc` queueing disciplines, removes any `iptables` rules
 it created, and disables IP forwarding — returning the lab network to
 its original state.
-
-## Project structure
-
-```
-internuncio/
-├── internuncio.py           # Entry point: argument parsing, orchestration, kill-switch
-├── config.py                 # Whitelist subnet, confirmation phrase, timeouts, tc/iptables tuning
-├── requirements.txt
-├── modules/
-│   ├── scanner.py             # Active ARP-based network discovery
-│   ├── spoofer.py             # ARP poisoning engine (single- and multi-victim, threaded)
-│   └── limiter.py             # tc (tbf + netem) and iptables traffic control
-└── utils/
-    ├── logger.py               # ANSI-colored console output
-    └── network_utils.py        # Whitelist checks, ARP MAC resolution, own IP/MAC, ip_forward
-```
-
-`internuncio.py` contains no networking logic of its own — it parses
-arguments, enforces the safety guards described below, and delegates to
-`modules/` and `utils/`. This keeps each concern (discovery, poisoning,
-shaping, logging, network helpers) independently readable and testable.
 
 ## Safety mechanisms
 
