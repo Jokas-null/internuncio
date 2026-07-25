@@ -80,12 +80,12 @@ several layers, not just a typo:
 
 | Mechanism | Where | What it does |
 |---|---|---|
-| **Subnet whitelist** | `config.WHITELIST_SUBNET` | Every IP — whether it comes from `--target`, `--targets`, or a `--scan` selection — is checked against this CIDR before anything else happens. Anything outside it is discarded with an "UNAUTHORIZED NETWORK" error. |
+| **Subnet whitelist** | `config.WHITELIST_SUBNET` | Every IP — whether it comes from `--target` or `--targets` — is checked against this CIDR before anything else happens. Anything outside it is discarded with an "UNAUTHORIZED NETWORK" error. |
 | **Manual confirmation** | `internuncio.py` | Attacking a single host requires an explicit `y` at a prompt. |
 | **Reinforced confirmation** | `internuncio.py` / `config.MULTI_TARGET_CONFIRMATION_PHRASE` | Attacking more than one host at once requires typing an exact phrase (`YES-I-AM-SURE` by default), not just `y` — the blast radius of a mistake scales with the victim count. |
 | **Thread cap** | `config.MAX_THREADS` | No more than 10 simultaneous poisoning sessions are allowed; extra targets are rejected with a warning. |
 | **Scoped discovery** | `modules/scanner.py` | The scanner only ever probes `config.WHITELIST_SUBNET`, never an arbitrary range passed on the CLI. |
-| **Self-exclusion** | `utils/network_utils.get_own_ip` | When selecting "all" hosts from a scan, the attacker's own IP is automatically removed from the victim list. |
+| **Read-only discovery** | `internuncio.py: scan_mode` | `--scan` only lists hosts and exits — it never asks about attacking any of them. Attacking requires a separate, explicit `--target`/`--targets` run. |
 | **Kill-switch** | `internuncio.py: sigint_handler` | `Ctrl+C` always restores ARP tables, removes `tc`/`iptables` rules, and disables IP forwarding before exiting — including mid-attack, across every active victim. |
 
 ## Requirements
@@ -142,10 +142,9 @@ sudo python3 internuncio.py --scan --interface eth0
 Sends ARP requests across `WHITELIST_SUBNET` and prints every host that
 answers, along with its MAC and its manufacturer (resolved offline from
 the MAC's OUI prefix — see [MAC vendor lookup](#mac-vendor-lookup-and---update-oui)
-below). Afterwards you're prompted to optionally select one, several
-(`0,2`), or `all` of the discovered hosts to hand off to attack mode —
-you'll then be asked for the gateway IP and desired bandwidth
-interactively.
+below). This is purely read-only: it lists hosts and exits, it never
+asks about attacking any of them. To attack a host found here, run
+again with `--target`/`--targets` and that IP.
 
 ### Single-target attack (`--target`)
 

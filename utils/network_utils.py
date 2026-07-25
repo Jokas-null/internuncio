@@ -6,28 +6,20 @@ Network utilities shared by scanner.py, spoofer.py, and internuncio.py:
 - Verify that an IP falls inside the lab whitelist
   (config.WHITELIST_SUBNET) — the project's hard safety guard.
 - Resolve the MAC address of a remote host via ARP.
-- Obtain our own interface's IP/MAC, needed to automatically exclude
-  ourselves from victim lists.
 - Enable/disable ip_forward.
 
 Split from spoofer.py and scanner.py because both modules need these same
-functions ("who am I on the network?", "is this IP allowed?"); keeping
+functions ("is this IP allowed?", "what's this host's MAC?"); keeping
 them in one place avoids duplicated logic and possible inconsistencies in
 the safety guard.
 """
 
-import fcntl
 import ipaddress
-import socket
-import struct
 
 from scapy.all import ARP, Ether, srp
 
 import config
 from utils.logger import log_warn
-
-SIOCGIFADDR = 0x8915
-SIOCGIFHWADDR = 0x8927
 
 
 def is_ip_whitelisted(ip_str: str) -> bool:
@@ -69,39 +61,6 @@ def get_mac(ip: str, interface: str, timeout: int = None) -> str:
     if response:
         return response[0][1].hwsrc
     raise RuntimeError(f"Could not resolve the MAC of {ip}. Is it powered on and on the same subnet?")
-
-
-def get_own_ip(interface: str) -> str:
-    """
-    Gets the IP assigned to `interface` on THIS machine via a socket
-    ioctl (SIOCGIFADDR). Used to automatically exclude the attacker
-    itself from the victim list in multi-target mode (ARP-poisoning
-    yourself would never make sense).
-    """
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        info = fcntl.ioctl(
-            s.fileno(),
-            SIOCGIFADDR,
-            struct.pack("256s", interface[:15].encode("utf-8")),
-        )
-        return socket.inet_ntoa(info[20:24])
-    finally:
-        s.close()
-
-
-def get_own_mac(interface: str) -> str:
-    """Returns the MAC of our own interface (useful for logging/debugging)."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        info = fcntl.ioctl(
-            s.fileno(),
-            SIOCGIFHWADDR,
-            struct.pack("256s", interface[:15].encode("utf-8")),
-        )
-        return ":".join("%02x" % b for b in info[18:24])
-    finally:
-        s.close()
 
 
 def set_ip_forward(enable: bool):

@@ -13,10 +13,9 @@ It contains no network logic of its own: that lives in modules/ and
 utils/, so each piece can be read, tested, and maintained separately.
 
 Available modes:
-    --scan                           Only discovers hosts on the lab
-                                      subnet, does not attack. At the end
-                                      it lets you pick one, several, or
-                                      "all" to pass on to attack mode.
+    --scan                           Purely read-only: lists hosts on
+                                      the lab subnet and exits. Never
+                                      attacks.
     --target IP --gateway IP         Attacks a SINGLE victim.
     --targets IP1,IP2,... --gateway  Attacks SEVERAL victims at once
                                       (multi-target, requires the
@@ -33,7 +32,6 @@ import config
 from utils.logger import Color, log_ok, log_warn, log_err, log_info
 from utils.network_utils import (
     filter_whitelisted_ips,
-    get_own_ip,
     set_ip_forward,
 )
 from modules.scanner import scan_network
@@ -258,11 +256,10 @@ def run_attack_flow(ips: list, gateway: str, interface: str, bandwidth: str):
 
 def scan_mode(interface: str):
     """
-    --scan mode: only discovers hosts on the lab subnet, never attacks by
-    itself. At the end, it shows the full list (IP/MAC/host) and lets you
-    explicitly choose who to pass on to attack mode — including the
-    "all" option, but always with prior visibility of exactly which
-    hosts will be affected.
+    --scan mode: purely read-only discovery. Lists hosts on the lab
+    subnet and exits — it never asks about attacking any of them. To
+    attack a host found here, run again with --target/--targets and
+    that IP.
     """
     hosts = scan_network(interface)
     if not hosts:
@@ -271,46 +268,6 @@ def scan_mode(interface: str):
     print(f"\n{Color.BOLD}Scan summary:{Color.END}")
     for i, h in enumerate(hosts):
         print(f"  [{i}] {h['ip']:<15} MAC: {h['mac']}  Vendor: {h['vendor']}")
-
-    response = input(f"\n{Color.YELLOW}Do you want to limit any of these? (y/N): {Color.END}").strip().lower()
-    if response != "y":
-        return
-
-    selection = input(
-        "Enter the number(s) from the list separated by commas (e.g.: 0,2) "
-        "or type 'all' to select all of them: "
-    ).strip()
-
-    if selection.lower() == "all":
-        chosen = hosts
-    else:
-        try:
-            indices = [int(x) for x in selection.split(",")]
-            chosen = [hosts[i] for i in indices]
-        except (ValueError, IndexError):
-            log_err("Invalid selection.")
-            return
-
-    chosen_ips = [h["ip"] for h in chosen]
-
-    # Automatically exclude our own IP: ARP-poisoning ourselves would
-    # never make sense (nor be safe).
-    own_ip = get_own_ip(interface)
-    if own_ip in chosen_ips:
-        chosen_ips.remove(own_ip)
-        log_warn(f"Your own IP ({own_ip}) is excluded from the victim list.")
-
-    if not chosen_ips:
-        log_warn("No valid IP remains after excluding your own.")
-        return
-
-    gateway = input(f"{Color.YELLOW}IP of this lab's gateway: {Color.END}").strip()
-    bandwidth = input(
-        f"{Color.YELLOW}Bandwidth to apply (e.g.: 1kbit, or '0' for a total cut) "
-        f"[{config.DEFAULT_BANDWIDTH}]: {Color.END}"
-    ).strip() or config.DEFAULT_BANDWIDTH
-
-    run_attack_flow(chosen_ips, gateway, interface, bandwidth)
 
 
 def main():
