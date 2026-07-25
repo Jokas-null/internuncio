@@ -131,14 +131,18 @@ def parse_args():
         help="Download the latest IEEE OUI vendor database into data/oui_db.json and exit. Requires internet access.",
     )
     # Running with no arguments at all (no --scan, no --target(s), no
-    # --update-oui...) can't do anything useful either way — show the
-    # help text and exit cleanly instead of falling through to the root
-    # check and then "you must specify --scan, --target, or --targets".
-    # Checked against sys.argv directly (not the parsed `args`) so it
-    # only triggers on a truly bare invocation, not e.g. `--bandwidth 0`
-    # alone with everything else defaulted.
+    # --update-oui...) can't do anything useful either way — show just
+    # the short usage line and exit cleanly instead of falling through
+    # to the root check and then "you must specify --scan, --target, or
+    # --targets". The full, detailed help (with descriptions for every
+    # flag) is reserved for an explicit --help/-h, via print_usage()
+    # instead of print_help() here. Checked against sys.argv directly
+    # (not the parsed `args`) so it only triggers on a truly bare
+    # invocation, not e.g. `--bandwidth 0` alone with everything else
+    # defaulted.
     if len(sys.argv) == 1:
-        parser.print_help()
+        parser.print_usage()
+        print("Run with --help for the full list of options.")
         sys.exit(0)
 
     return parser.parse_args()
