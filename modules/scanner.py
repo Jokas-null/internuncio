@@ -18,7 +18,8 @@ import socket
 from scapy.all import ARP, Ether, srp
 
 import config
-from utils.logger import log_info, log_ok, log_warn
+from utils.logger import log_info, log_host_found, log_warn
+from utils.vendor_lookup import get_vendor
 
 
 def resolve_hostname(ip: str) -> str:
@@ -41,7 +42,7 @@ def scan_network(interface: str) -> list:
     answers proves it is alive and on the same subnet (no need for ping;
     ARP is already a reliable layer-2 discovery within the segment).
 
-    Returns a list of dicts: {"ip": ..., "mac": ..., "hostname": ...}
+    Returns a list of dicts: {"ip": ..., "mac": ..., "hostname": ..., "vendor": ...}
     """
     network = ipaddress.ip_network(config.WHITELIST_SUBNET, strict=False)
     log_info(f"Scanning {network} on interface {interface} (this may take a few seconds)...")
@@ -54,8 +55,12 @@ def scan_network(interface: str) -> list:
         ip = received.psrc
         mac = received.hwsrc
         hostname = resolve_hostname(ip)
-        hosts.append({"ip": ip, "mac": mac, "hostname": hostname})
-        log_ok(f"Active host: {ip:<15} MAC: {mac}  Hostname: {hostname}")
+        # get_vendor() resuelve contra la base OUI local (data/oui_db.json,
+        # cacheada en memoria por vendor_lookup), así que añadir esta
+        # columna no introduce latencia de red por cada host encontrado.
+        vendor = get_vendor(mac)
+        hosts.append({"ip": ip, "mac": mac, "hostname": hostname, "vendor": vendor})
+        log_host_found(ip, mac, hostname, vendor)
 
     if not hosts:
         log_warn("No active hosts were detected on the lab subnet.")

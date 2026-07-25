@@ -27,6 +27,9 @@ config_local.py
 .idea/
 *.swp
 
+# Local Claude Code settings — machine-specific, not part of the project
+.claude/
+
 # Captured lab traffic (may contain sensitive data from lab hosts)
 *.pcap
 *.pcapng

@@ -43,6 +43,7 @@ from modules.limiter import (
     clear_tc,
     clear_iptables,
 )
+from utils.vendor_lookup import update_oui_database
 
 # --- Global state of the ongoing attack, needed so the kill-switch     ---
 # --- (sigint_handler) knows what to restore no matter how it was launched. ---
@@ -85,13 +86,22 @@ def parse_args():
     parser.add_argument("--target", help="IP of a single victim")
     parser.add_argument("--targets", help="Comma-separated list of victim IPs (multi-target mode)")
     parser.add_argument("--gateway", help="IP of the lab router/gateway")
-    parser.add_argument("--interface", required=True, help="Network interface to use, e.g.: eth0")
+    # No es required=True a nivel de argparse porque --update-oui no
+    # necesita ninguna interfaz de red (solo descarga un archivo); la
+    # validación de "esta interfaz hace falta para este modo" se hace
+    # a mano en main().
+    parser.add_argument("--interface", help="Network interface to use, e.g.: eth0")
     parser.add_argument(
         "--bandwidth",
         default=config.DEFAULT_BANDWIDTH,
         help="Maximum allowed rate (e.g.: 1kbit, 500kbit). '0' = total cut.",
     )
     parser.add_argument("--scan", action="store_true", help="Only scan the lab network, do not attack.")
+    parser.add_argument(
+        "--update-oui",
+        action="store_true",
+        help="Download the latest IEEE OUI vendor database into data/oui_db.json and exit. Requires internet access.",
+    )
     return parser.parse_args()
 
 
@@ -204,7 +214,10 @@ def scan_mode(interface: str):
 
     print(f"\n{Color.BOLD}Scan summary:{Color.END}")
     for i, h in enumerate(hosts):
-        print(f"  [{i}] {h['ip']:<15} MAC: {h['mac']}  Hostname: {h['hostname']}")
+        print(
+            f"  [{i}] {h['ip']:<15} MAC: {h['mac']}  "
+            f"Hostname: {h['hostname']:<12}  Vendor: {h['vendor']}"
+        )
 
     response = input(f"\n{Color.YELLOW}Do you want to limit any of these? (y/N): {Color.END}").strip().lower()
     if response != "y":
@@ -255,6 +268,17 @@ def main():
     # cancels before reaching the attack, Ctrl+C should never raise a
     # raw traceback.
     signal.signal(signal.SIGINT, sigint_handler)
+
+    # --update-oui se resuelve antes que cualquier otra cosa y no
+    # requiere --interface: es la única operación de todo el proyecto
+    # que necesita salir a internet, y no toca la red del laboratorio.
+    if args.update_oui:
+        update_oui_database()
+        return
+
+    if not args.interface:
+        log_err("Missing --interface.")
+        sys.exit(1)
 
     if args.scan:
         scan_mode(args.interface)
