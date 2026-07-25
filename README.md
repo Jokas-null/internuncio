@@ -28,6 +28,7 @@ bandwidth, generating traffic patterns an IDS should be able to detect.
   - [Network discovery (`--scan`)](#network-discovery---scan)
   - [Single-target attack (`--target`)](#single-target-attack---target)
   - [Multi-target attack (`--targets`)](#multi-target-attack---targets)
+  - [Attack every host found (`--all`)](#attack-every-host-found---all)
   - [Bandwidth limiting vs. total cut](#bandwidth-limiting-vs-total-cut)
   - [MAC vendor lookup and `--update-oui`](#mac-vendor-lookup-and---update-oui)
   - [Stopping the attack (kill-switch)](#stopping-the-attack-kill-switch)
@@ -80,7 +81,7 @@ several layers, not just a typo:
 
 | Mechanism | Where | What it does |
 |---|---|---|
-| **Subnet whitelist** | `config.WHITELIST_SUBNET` | Every IP — whether it comes from `--target` or `--targets` — is checked against this CIDR before anything else happens. Anything outside it is discarded with an "UNAUTHORIZED NETWORK" error. |
+| **Subnet whitelist** | `config.WHITELIST_SUBNET` | Every IP — whether it comes from `--target`, `--targets`, or `--all` — is checked against this CIDR before anything else happens. Anything outside it is discarded with an "UNAUTHORIZED NETWORK" error. |
 | **Manual confirmation** | `internuncio.py` | Attacking a single host requires an explicit `y` at a prompt. |
 | **Reinforced confirmation** | `internuncio.py` / `config.MULTI_TARGET_CONFIRMATION_PHRASE` | Attacking more than one host at once requires typing an exact phrase (`YES-I-AM-SURE` by default), not just `y` — the blast radius of a mistake scales with the victim count. |
 | **Thread cap** | `config.MAX_THREADS` | No more than 10 simultaneous poisoning sessions are allowed; extra targets are rejected with a warning. |
@@ -166,6 +167,18 @@ sudo python3 internuncio.py --targets 192.168.100.50,192.168.100.51 \
 Runs one poisoning session per victim (threaded, up to
 `MAX_THREADS`), and requires typing the reinforced confirmation phrase
 before proceeding.
+
+### Attack every host found (`--all`)
+
+```bash
+sudo python3 internuncio.py --all --gateway 192.168.100.1 --interface eth0 --bandwidth 1kbit
+```
+
+Scans `WHITELIST_SUBNET` internally, prints the same host list `--scan`
+would, then hands every discovered IP to the same `run_attack_flow()`
+choke point `--targets` uses — so the gateway is dropped from the
+target list automatically, and the reinforced multi-target
+confirmation phrase is still required before anything is poisoned.
 
 ### Bandwidth limiting vs. total cut
 

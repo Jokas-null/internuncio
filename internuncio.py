@@ -20,6 +20,9 @@ Available modes:
     --targets IP1,IP2,... --gateway  Attacks SEVERAL victims at once
                                       (multi-target, requires the
                                       reinforced confirmation phrase).
+    --all --gateway IP               Scans the lab subnet and attacks
+                                      EVERY host found (same reinforced
+                                      confirmation as --targets).
 """
 
 import argparse
@@ -123,6 +126,11 @@ def parse_args():
         help="Maximum allowed rate (e.g.: 1kbit, 500kbit). '0' = total cut.",
     )
     parser.add_argument("--scan", action="store_true", help="Only scan the lab network, do not attack.")
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Scan the lab subnet and attack every host found (requires --gateway; still gated by the reinforced multi-target confirmation phrase).",
+    )
     parser.add_argument(
         "--update-oui",
         action="store_true",
@@ -270,6 +278,29 @@ def scan_mode(interface: str):
         print(f"  [{i}] {h['ip']:<15} MAC: {h['mac']}  Vendor: {h['vendor']}")
 
 
+def all_mode(interface: str, gateway: str, bandwidth: str):
+    """
+    --all mode: scans the lab subnet internally (same visibility as
+    --scan — the discovered list is printed before anything else
+    happens) and then hands EVERY host found to run_attack_flow(),
+    which is the same choke point --target/--targets go through: the
+    gateway is dropped from the target list, and since this is
+    virtually always more than one victim, the reinforced multi-target
+    confirmation phrase is required, same as a manual --targets run.
+    """
+    hosts = scan_network(interface)
+    if not hosts:
+        log_warn("No active hosts were detected; nothing to attack.")
+        return
+
+    print(f"\n{Color.BOLD}Scan summary:{Color.END}")
+    for i, h in enumerate(hosts):
+        print(f"  [{i}] {h['ip']:<15} MAC: {h['mac']}  Vendor: {h['vendor']}")
+
+    ips = [h["ip"] for h in hosts]
+    run_attack_flow(ips, gateway, interface, bandwidth)
+
+
 def main():
     args = parse_args()
     print(f"{Color.BOLD}=== Internuncio — MITM / ARP Spoofing Lab ==={Color.END}")
@@ -314,12 +345,19 @@ def main():
             scan_mode(args.interface)
             return
 
+        if args.all:
+            if not args.gateway:
+                log_err("Missing --gateway.")
+                sys.exit(1)
+            all_mode(args.interface, args.gateway, args.bandwidth)
+            return
+
         if args.targets:
             ips = [ip.strip() for ip in args.targets.split(",") if ip.strip()]
         elif args.target:
             ips = [args.target]
         else:
-            log_err("You must specify --scan, --target, or --targets.")
+            log_err("You must specify --scan, --target, --targets, or --all.")
             sys.exit(1)
 
         if not args.gateway:
