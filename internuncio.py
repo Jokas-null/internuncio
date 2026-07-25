@@ -130,6 +130,17 @@ def parse_args():
         action="store_true",
         help="Download the latest IEEE OUI vendor database into data/oui_db.json and exit. Requires internet access.",
     )
+    # Running with no arguments at all (no --scan, no --target(s), no
+    # --update-oui...) can't do anything useful either way — show the
+    # help text and exit cleanly instead of falling through to the root
+    # check and then "you must specify --scan, --target, or --targets".
+    # Checked against sys.argv directly (not the parsed `args`) so it
+    # only triggers on a truly bare invocation, not e.g. `--bandwidth 0`
+    # alone with everything else defaulted.
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
+
     return parser.parse_args()
 
 
