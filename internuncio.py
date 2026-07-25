@@ -52,17 +52,19 @@ total_block_targets = []  # IPs with --bandwidth 0, so their iptables rules get 
 current_interface = None
 
 
-def sigint_handler(sig, frame):
+def restore_network():
     """
-    Global kill-switch (Ctrl+C): restores the real ARP state of ALL
-    active victims (one or several), removes the interface's tc rules
-    and the iptables rules from any total block, and disables
-    ip_forward. Leaves the lab network exactly as it was before running
-    the script.
-    """
-    print()
-    log_warn("Interrupt signal received (Ctrl+C). Restoring the network...")
+    Restores the real ARP state of ALL active victims, removes the
+    interface's tc rules and any iptables total-block rules, and
+    disables ip_forward — leaving the lab network exactly as it was
+    before running the script.
 
+    Extracted from sigint_handler so the SAME cleanup can run from two
+    triggers: Ctrl+C, and an unexpected exception during the attack
+    (e.g. a victim going offline mid-run). Without this, a crash would
+    leave ip_forward enabled and any already-poisoned victims without
+    a restore, silently and indefinitely.
+    """
     manager.restore_all()
 
     if current_interface:
@@ -75,6 +77,13 @@ def sigint_handler(sig, frame):
         log_ok("iptables (DROP) rules removed.")
 
     set_ip_forward(False)
+
+
+def sigint_handler(sig, frame):
+    """Global kill-switch (Ctrl+C): triggers restore_network() and exits cleanly."""
+    print()
+    log_warn("Interrupt signal received (Ctrl+C). Restoring the network...")
+    restore_network()
     log_ok("Restoration complete. Exiting.")
     sys.exit(0)
 
@@ -181,6 +190,19 @@ def run_attack_flow(ips: list, gateway: str, interface: str, bandwidth: str):
         log_err(f"None of the IPs are inside the lab whitelist ({config.WHITELIST_SUBNET}).")
         sys.exit(1)
 
+    # Poisoning the gateway "against itself" (target == gateway, e.g. when
+    # selecting "all" hosts from --scan and the gateway answered the ARP
+    # sweep too) has no MITM effect and only wastes a session/thread — so
+    # it's dropped here, in the single choke point every attack path goes
+    # through, same as the whitelist check above.
+    if gateway in valid_ips:
+        valid_ips.remove(gateway)
+        log_warn(f"Gateway IP ({gateway}) removed from the target list — it can't be poisoned against itself.")
+
+    if not valid_ips:
+        log_err("No valid targets remain after excluding the gateway.")
+        sys.exit(1)
+
     if len(valid_ips) > config.MAX_THREADS:
         log_warn(
             f"Simultaneous targets are capped at {config.MAX_THREADS} "
@@ -269,34 +291,47 @@ def main():
     # raw traceback.
     signal.signal(signal.SIGINT, sigint_handler)
 
-    # --update-oui se resuelve antes que cualquier otra cosa y no
-    # requiere --interface: es la única operación de todo el proyecto
-    # que necesita salir a internet, y no toca la red del laboratorio.
-    if args.update_oui:
-        update_oui_database()
-        return
+    # Everything below runs inside a try/except so that ANY unexpected
+    # failure mid-attack (e.g. a victim going offline and its MAC
+    # resolution raising) still triggers the same network restoration
+    # as Ctrl+C, instead of crashing with ip_forward left enabled and
+    # already-poisoned victims never restored. sys.exit() raises
+    # SystemExit, which this "except Exception" deliberately does not
+    # catch, so normal CLI validation errors below are unaffected.
+    try:
+        # --update-oui se resuelve antes que cualquier otra cosa y no
+        # requiere --interface: es la única operación de todo el proyecto
+        # que necesita salir a internet, y no toca la red del laboratorio.
+        if args.update_oui:
+            update_oui_database()
+            return
 
-    if not args.interface:
-        log_err("Missing --interface.")
+        if not args.interface:
+            log_err("Missing --interface.")
+            sys.exit(1)
+
+        if args.scan:
+            scan_mode(args.interface)
+            return
+
+        if args.targets:
+            ips = [ip.strip() for ip in args.targets.split(",") if ip.strip()]
+        elif args.target:
+            ips = [args.target]
+        else:
+            log_err("You must specify --scan, --target, or --targets.")
+            sys.exit(1)
+
+        if not args.gateway:
+            log_err("Missing --gateway.")
+            sys.exit(1)
+
+        run_attack_flow(ips, args.gateway, args.interface, args.bandwidth)
+    except Exception as e:
+        log_err(f"Unexpected error: {e}")
+        log_warn("Restoring the network before exiting...")
+        restore_network()
         sys.exit(1)
-
-    if args.scan:
-        scan_mode(args.interface)
-        return
-
-    if args.targets:
-        ips = [ip.strip() for ip in args.targets.split(",") if ip.strip()]
-    elif args.target:
-        ips = [args.target]
-    else:
-        log_err("You must specify --scan, --target, or --targets.")
-        sys.exit(1)
-
-    if not args.gateway:
-        log_err("Missing --gateway.")
-        sys.exit(1)
-
-    run_attack_flow(ips, args.gateway, args.interface, args.bandwidth)
 
 
 if __name__ == "__main__":
