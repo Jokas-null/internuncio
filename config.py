@@ -31,7 +31,7 @@ SCAN_TIMEOUT = 3          # seconds to wait for responses during network discove
 # Each active victim consumes a dedicated thread running its ARP-poisoning
 # loop. This number is capped so neither the lab network nor the Python
 # process itself gets out of control.
-MAX_THREADS = 10
+MAX_THREADS = 3
 
 # --- tc (traffic control) parameters ---
 DEFAULT_BANDWIDTH = "1kbit"
